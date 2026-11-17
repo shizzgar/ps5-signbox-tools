@@ -1,19 +1,53 @@
 {
-  "log": {"level": "info"},
+  "log": {
+    "level": "info"
+  },
+  "certificate": {
+    "store": "mozilla"
+  },
   "dns": {
-    "servers": [{"type": "local", "tag": "local-dns"}],
-    "final": "local-dns"
+    "servers": [
+      {
+        "type": "udp",
+        "tag": "dns",
+        "server": "192.168.1.1",
+        "server_port": 53
+      }
+    ],
+    "final": "dns"
   },
   "inbounds": [
-    {"type": "mixed", "tag": "mixed-in", "listen": "127.0.0.1", "listen_port": 17890}
+    {
+      "type": "mixed",
+      "tag": "local",
+      "listen": "127.0.0.1",
+      "listen_port": 17890
+    }
   ],
   "outbounds": [
-    {"type": "socks", "tag": "upstream", "server": "192.0.2.10", "server_port": 1080, "version": "5"},
-    {"type": "direct", "tag": "direct"}
+    {
+      "type": "socks",
+      "tag": "upstream",
+      "server": "192.0.2.10",
+      "server_port": 1080,
+      "version": "5"
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
   ],
   "route": {
-    "rules": [{"ip_cidr": ["127.0.0.0/8"], "action": "route", "outbound": "direct"}],
+    "rules": [
+      {
+        "ip_cidr": [
+          "127.0.0.0/8"
+        ],
+        "action": "route",
+        "outbound": "direct"
+      }
+    ],
     "final": "upstream",
-    "default_domain_resolver": "local-dns"
+    "default_domain_resolver": "dns"
   }
 }

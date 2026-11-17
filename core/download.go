@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-// Adapted from the PS5 Network 0.21 network probe for the standalone CLI.
 package main
 
 import (
 	"context"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -13,31 +13,47 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"syscall"
 	"time"
 )
 
+const downloadURLPath = "/data/ps5-local-proxy/download-url.txt"
 const controlDownloadURL = "https://speed.cloudflare.com/__down?bytes=4194304"
 const controlBytes = 4 * 1024 * 1024
 const sampleBytes = 1024 * 1024
 const maxURLBytes = 8192
+const downloadTimeout = 25 * time.Second
+
+func checkDownload(ctx context.Context, proxy string, roots *x509.CertPool) error {
+	target, sample, err := downloadTarget(downloadURLPath)
+	if err != nil {
+		return err
+	}
+	transport := proxyTransport(proxy, "http", roots)
+	defer transport.CloseIdleConnections()
+	ctx, cancel := context.WithTimeout(ctx, downloadTimeout)
+	defer cancel()
+	return probeDownload(ctx, transport, target, sample)
+}
 
 func downloadTarget(path string) (*url.URL, bool, error) {
-	if path == "" {
-		target, err := url.Parse(controlDownloadURL)
-		return target, false, err
+	fd, err := syscall.Open(path, syscall.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK|syscall.O_CLOEXEC, 0)
+	if errors.Is(err, os.ErrNotExist) {
+		control, err := url.Parse(controlDownloadURL)
+		return control, false, err
 	}
-	info, err := os.Lstat(path)
+	if err != nil {
+		return nil, false, fmt.Errorf("open %s: %w", path, err)
+	}
+	file := os.NewFile(uintptr(fd), path)
+	defer file.Close()
+	info, err := file.Stat()
 	if err != nil {
 		return nil, false, err
 	}
 	if !info.Mode().IsRegular() || info.Size() > maxURLBytes {
-		return nil, false, errors.New("URL file must be a regular file up to 8192 bytes")
+		return nil, false, errors.New("download-url.txt must be a regular file up to 8192 bytes")
 	}
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, false, err
-	}
-	defer file.Close()
 	data, err := io.ReadAll(io.LimitReader(file, maxURLBytes+1))
 	if err != nil {
 		return nil, false, err
@@ -45,13 +61,13 @@ func downloadTarget(path string) (*url.URL, bool, error) {
 	raw := strings.TrimSpace(string(data))
 	target, err := url.Parse(raw)
 	if len(data) > maxURLBytes || strings.ContainsAny(raw, " \t\r\n") || err != nil || !validDownloadTarget(target) {
-		return nil, false, errors.New("URL file must contain one HTTPS URL without credentials or a fragment")
+		return nil, false, errors.New("download-url.txt must contain one HTTPS URL without user information")
 	}
 	return target, true, nil
 }
 
 func validDownloadTarget(target *url.URL) bool {
-	return target.Scheme == "https" && target.Hostname() != "" && target.User == nil && target.Fragment == ""
+	return target.Scheme == "https" && target.Hostname() != "" && target.User == nil
 }
 
 func probeDownload(ctx context.Context, transport http.RoundTripper, target *url.URL, sample bool) error {
@@ -59,7 +75,7 @@ func probeDownload(ctx context.Context, transport http.RoundTripper, target *url
 	if sample {
 		limit = sampleBytes
 	}
-	fmt.Fprintf(os.Stderr, "GET %s via proxy · up to %d bytes\n", target.Hostname(), limit)
+	fmt.Fprintf(os.Stderr, "GET %s via HTTP CONNECT · up to %d bytes\n", target.Hostname(), limit)
 	start := time.Now()
 	response, err := requestDownload(ctx, transport, target, sample)
 	if err != nil {
@@ -98,14 +114,19 @@ func probeDownload(ctx context.Context, transport http.RoundTripper, target *url
 	if err != nil {
 		return fmt.Errorf("reading download after %d bytes: %w", n, err)
 	}
-	if !sample && n != limit {
-		return fmt.Errorf("expected %d bytes from the download test, received %d", limit, n)
-	}
-	if sample && n == 0 {
-		return errors.New("empty download response")
-	}
-	if rangeLength != 0 && n != rangeLength {
-		return fmt.Errorf("HTTP range announced %d bytes, received %d", rangeLength, n)
+	if sample {
+		if n == 0 {
+			return errors.New("empty download response")
+		}
+		if rangeLength != 0 && n != rangeLength {
+			return fmt.Errorf("HTTP range announced %d bytes, received %d", rangeLength, n)
+		}
+		fmt.Fprintln(os.Stderr, "PASS: received a sample from the supplied URL")
+	} else {
+		if n != limit {
+			return fmt.Errorf("expected %d bytes from the download test, received %d", limit, n)
+		}
+		fmt.Fprintln(os.Stderr, "PASS: received the complete 4 MiB test response")
 	}
 	return nil
 }

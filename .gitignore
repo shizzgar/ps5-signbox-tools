@@ -2,7 +2,7 @@
 /config.json.*
 /config.*.json
 /download-url.txt*
-/network-check
-/network-check.exe
 /.env
 *.log
+/core/vendor/
+/core/ps5-local-proxy

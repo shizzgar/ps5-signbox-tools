@@ -1,13 +1,31 @@
 {
-  "log": {"level": "info"},
+  "log": {
+    "level": "info",
+    "timestamp": true
+  },
+  "certificate": {
+    "store": "mozilla"
+  },
   "dns": {
     "servers": [
-      {"type": "udp", "tag": "vpn-dns", "server": "10.77.0.1", "server_port": 53, "detour": "wg-private"}
+      {
+        "type": "udp",
+        "tag": "vpn-dns",
+        "server": "10.77.0.1",
+        "server_port": 53,
+        "detour": "wg-private"
+      }
     ],
-    "final": "vpn-dns"
+    "final": "vpn-dns",
+    "strategy": "ipv4_only"
   },
   "inbounds": [
-    {"type": "mixed", "tag": "mixed-in", "listen": "127.0.0.1", "listen_port": 17890}
+    {
+      "type": "mixed",
+      "tag": "local",
+      "listen": "127.0.0.1",
+      "listen_port": 17890
+    }
   ],
   "endpoints": [
     {
@@ -15,15 +33,21 @@
       "tag": "wg-private",
       "system": false,
       "mtu": 1280,
-      "address": ["10.77.0.2/32"],
+      "address": [
+        "10.77.0.3/32"
+      ],
       "private_key": "REPLACE_WITH_WIREGUARD_PRIVATE_KEY",
+      "workers": 2,
       "detour": "udp-quic",
       "peers": [
         {
           "address": "127.0.0.1",
           "port": 51820,
           "public_key": "REPLACE_WITH_PEER_PUBLIC_KEY",
-          "allowed_ips": ["0.0.0.0/0"],
+          "pre_shared_key": "REPLACE_WITH_PRESHARED_KEY_OR_REMOVE",
+          "allowed_ips": [
+            "0.0.0.0/0"
+          ],
           "persistent_keepalive_interval": 25
         }
       ]
@@ -35,16 +59,40 @@
       "tag": "udp-quic",
       "server": "203.0.113.10",
       "server_port": 443,
-      "password": "REPLACE_WITH_HYSTERIA2_PASSWORD",
+      "password": "REPLACE_WITH_SERVER_PASSWORD",
       "network": "udp",
-      "tls": {"enabled": true, "server_name": "vpn.example.invalid"}
+      "tls": {
+        "enabled": true,
+        "server_name": "vpn.example.org"
+      }
     },
-    {"type": "direct", "tag": "direct"}
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
   ],
   "route": {
     "rules": [
-      {"inbound": ["mixed-in"], "action": "resolve", "strategy": "ipv4_only"},
-      {"ip_cidr": ["127.0.0.0/8"], "action": "route", "outbound": "direct"}
+      {
+        "ip_cidr": [
+          "127.0.0.0/8"
+        ],
+        "action": "route",
+        "outbound": "direct"
+      },
+      {
+        "inbound": [
+          "wg-private"
+        ],
+        "action": "reject"
+      },
+      {
+        "inbound": [
+          "local"
+        ],
+        "ip_version": 6,
+        "action": "reject"
+      }
     ],
     "final": "wg-private",
     "default_domain_resolver": "vpn-dns"

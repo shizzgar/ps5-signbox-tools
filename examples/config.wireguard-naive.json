@@ -1,0 +1,105 @@
+{
+  "log": {
+    "level": "info",
+    "timestamp": true
+  },
+  "certificate": {
+    "store": "mozilla"
+  },
+  "dns": {
+    "servers": [
+      {
+        "type": "udp",
+        "tag": "vpn-dns",
+        "server": "10.77.0.1",
+        "server_port": 53,
+        "detour": "wg-private"
+      }
+    ],
+    "final": "vpn-dns",
+    "strategy": "ipv4_only"
+  },
+  "inbounds": [
+    {
+      "type": "mixed",
+      "tag": "local",
+      "listen": "127.0.0.1",
+      "listen_port": 17890
+    }
+  ],
+  "endpoints": [
+    {
+      "type": "wireguard",
+      "tag": "wg-private",
+      "system": false,
+      "mtu": 1280,
+      "address": [
+        "10.77.0.3/32"
+      ],
+      "private_key": "REPLACE_WITH_WIREGUARD_PRIVATE_KEY",
+      "workers": 2,
+      "detour": "tcp-h2",
+      "peers": [
+        {
+          "address": "127.0.0.1",
+          "port": 51820,
+          "public_key": "REPLACE_WITH_PEER_PUBLIC_KEY",
+          "pre_shared_key": "REPLACE_WITH_PRESHARED_KEY_OR_REMOVE",
+          "allowed_ips": [
+            "0.0.0.0/0"
+          ],
+          "persistent_keepalive_interval": 25
+        }
+      ]
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "naive",
+      "tag": "tcp-h2",
+      "server": "203.0.113.10",
+      "server_port": 443,
+      "username": "REPLACE_WITH_SERVER_USERNAME",
+      "password": "REPLACE_WITH_SERVER_PASSWORD",
+      "quic": false,
+      "udp_over_tcp": {
+        "enabled": true,
+        "version": 2
+      },
+      "tls": {
+        "enabled": true,
+        "server_name": "vpn.example.org"
+      }
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "ip_cidr": [
+          "127.0.0.0/8"
+        ],
+        "action": "route",
+        "outbound": "direct"
+      },
+      {
+        "inbound": [
+          "wg-private"
+        ],
+        "action": "reject"
+      },
+      {
+        "inbound": [
+          "local"
+        ],
+        "ip_version": 6,
+        "action": "reject"
+      }
+    ],
+    "final": "wg-private",
+    "default_domain_resolver": "vpn-dns"
+  }
+}
