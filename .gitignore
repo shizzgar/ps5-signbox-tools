@@ -6,3 +6,7 @@
 *.log
 /core/vendor/
 /core/ps5-local-proxy
+/panel-launcher/ps5-network-open-panel.elf
+/panel-launcher/media/ps5-network-media.elf
+/.build/
+/elf/

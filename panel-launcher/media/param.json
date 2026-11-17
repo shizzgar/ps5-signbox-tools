@@ -1,0 +1,10 @@
+{
+  "applicationCategoryType": 65536,
+  "titleId": "PSNT08095",
+  "deeplinkUri": "http://127.0.0.1:8095/",
+  "localizedParameters": {
+    "defaultLanguage": "en-US",
+    "en-US": { "titleName": "PS5 Network" },
+    "ru-RU": { "titleName": "PS5 Network" }
+  }
+}

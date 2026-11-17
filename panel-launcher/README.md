@@ -1,8 +1,22 @@
 # Открытие панели на PS5
 
-Распакуйте архив с ELF и контрольной суммой SHA-256. Импортируйте `ps5-network-open-panel.elf` в Payload Manager. Когда PS5 Network 0.21 уже запущена, откройте ярлык **Payload Manager** на PS5 и выберите этот ELF в списке. Системный браузер откроет `http://127.0.0.1:8095/`. Код входа берётся из уведомления PS5 Network. ПК нужен только для первоначального переноса ELF, если вы используете импорт по LAN. [Скачать архив с ELF](https://raw.githubusercontent.com/shizzgar/ps5-signbox-tools/main/panel-launcher/ps5-network-open-panel.zip)
+Для отдельной плитки **PS5 Network** в разделе **Мультимедиа** используйте [установщик плитки](ps5-network-media.zip). Его нужно запустить один раз. [Инструкция и исходник установщика](media/README.md)
+
+## Открытие через Payload Manager
+
+Распакуйте архив с ELF и контрольной суммой SHA-256. Импортируйте `ps5-network-open-panel.elf` в Payload Manager. Когда PS5 Network 0.21 уже запущена, откройте ярлык **Payload Manager** на PS5 и выберите этот ELF в списке. Системный браузер откроет `http://127.0.0.1:8095/`. Код входа берётся из уведомления PS5 Network. ПК нужен только для первоначального переноса ELF, если вы используете импорт по LAN. [Архив с ELF](ps5-network-open-panel.zip)
 
 При остановленной панели приложение покажет уведомление. Сначала запустите свою установленную PS5 Network, затем повторите открытие. По LAN панель по-прежнему доступна по адресу PS5 на порту `8095`.
+
+## Проверка ELF перед переносом
+
+В распакованном каталоге на Linux выполните проверку по `SHA256SUMS.txt`.
+
+```bash
+sha256sum -c SHA256SUMS.txt
+```
+
+В Windows PowerShell выполните `Get-FileHash .\ps5-network-open-panel.elf -Algorithm SHA256` и сравните значение с `SHA256SUMS.txt`.
 
 ## Сборка
 
