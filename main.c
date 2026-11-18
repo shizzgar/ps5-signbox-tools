@@ -33,12 +33,12 @@ main(void) {
         close(lock);
         return 1;
     }
-    report_log("PS5 Network 0.21");
+    report_log("PS5 Network 0.22");
     name_payload(PANEL_PROCESS_NAME);
     if (diagnostics_open() != 0) {
         report_log("Could not open diagnostics: %s", strerror(errno));
     } else {
-        report_diag("PS5 Network 0.21 firmware=%#x PID=%d local_page_size=%d", kernel_get_fw_version(),
+        report_diag("PS5 Network 0.22 firmware=%#x PID=%d local_page_size=%d", kernel_get_fw_version(),
                     (int)getpid(), getpagesize());
     }
     int result = panel_run();

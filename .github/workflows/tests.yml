@@ -1,0 +1,27 @@
+name: Runtime checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  host-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check console access and Orbit image selection
+        run: python3 -m unittest discover -s tests -v
+      - name: Check panel session and status behavior
+        run: node --test tests/panel.test.cjs
+      - name: Check script syntax and release checksums
+        run: |
+          bash -n build.sh
+          node --check ui/panel.js
+          cd elf
+          sha256sum -c SHA256SUMS.txt

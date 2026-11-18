@@ -25,6 +25,7 @@
 #include "orbit-image.h"
 #include "orbit-relay.h"
 #include "orbit-run.h"
+#include "orbit-source.h"
 #include "process.h"
 #include "relay.h"
 #include "report.h"
@@ -838,15 +839,26 @@ snapshot_regions(struct session *session, struct orbit_region *regions, const ch
     return count;
 }
 
+struct orbit_reader {
+    struct session *session;
+    size_t reads, failures;
+    int error;
+};
+
 static int
 read_orbit_memory(void *argument, uintptr_t address, void *buffer, size_t size) {
-    struct session *session = argument;
-    return memory_transfer(session, session->pid, PIOD_READ_I, address, buffer, size, NULL);
+    struct orbit_reader *reader = argument;
+    reader->reads++;
+    int result = memory_transfer(reader->session, reader->session->pid, PIOD_READ_I, address, buffer, size, NULL);
+    if (result != 0) {
+        reader->failures++;
+        reader->error = errno;
+    }
+    return result;
 }
 
 static int
-find_orbit_import(struct session *session, const unsigned char *source, size_t source_size,
-                  struct webview_imports *imports) {
+find_orbit_import(struct session *session, struct webview_imports *imports) {
     if (webview_find_exports(session->pid, imports) != 0)
         return -1;
     struct orbit_region *regions = calloc(PROCESS_VM_LIMIT, sizeof(*regions));
@@ -855,13 +867,15 @@ find_orbit_import(struct session *session, const unsigned char *source, size_t s
     const char *provider;
     int count = snapshot_regions(session, regions, &provider);
     uintptr_t base = 0, slot = 0;
-    int result = count > 0 ? orbit_find_live_import(source, source_size, regions, (size_t)count,
-                                                    read_orbit_memory, session, &base, &slot) : -1;
+    struct orbit_reader reader = {.session = session};
+    int result = count > 0 ? orbit_find_runtime_import(regions, (size_t)count,
+                                                       read_orbit_memory, &reader, &base, &slot) : -1;
     int detail = errno;
     free(regions);
     report_diag("Orbit PID=%d live image maps=%d source=%s base=%#lx connect_slot=%#lx result=%d errno=%d",
                 (int)session->pid, count, provider, (unsigned long)base, (unsigned long)slot, result,
                 result == 0 ? 0 : detail);
+    report_diag("Orbit image reads=%zu failed=%zu last_read_errno=%d", reader.reads, reader.failures, reader.error);
     if (result == 0) {
         imports->slots[0].address = slot;
         imports->count = 1;
@@ -1432,16 +1446,12 @@ trace_connect_imports(pid_t pid, const struct process *target, const struct sock
     struct orbit_relay broker = {.socket = -1, .stop = stop, .probe_target = check};
     pthread_t thread;
     int installed = 0, broker_running = 0, result = -1;
-    unsigned char *source = NULL;
-    size_t source_size = 0;
     report_diag("%s begin PID=%d role=%s", label, (int)pid, check ? "preflight" : "native");
     if (debug_init(&session.debug) != 0) {
         report_log("Cannot read %s tracer authid", label);
         errno = EACCES;
         return -1;
     }
-    if (orbit_attached && orbit_read_saved(&source, &source_size) != 0)
-        return -1;
     if (check) {
         probe.probe_port = check->sin_port;
         broker.socket = orbit_open_control(&probe);
@@ -1473,13 +1483,9 @@ trace_connect_imports(pid_t pid, const struct process *target, const struct sock
         imports.exports[0] = (uintptr_t)webview_probe_connect;
         imports.count = imports.export_count = 1;
     } else if (orbit_attached) {
-        int found = find_orbit_import(&session, source, source_size, &imports);
-        int detail = errno;
-        free(source);
-        source = NULL;
-        errno = detail;
+        int found = find_orbit_import(&session, &imports);
         if (found != 0) {
-            trace_error("Match saved Orbit ELF and find live connect import");
+            trace_error("Match Orbit runtime ELF and find live connect import");
             goto done;
         }
     } else if (find_webview_imports(&session, &imports) != 0) {
@@ -1533,7 +1539,6 @@ trace_connect_imports(pid_t pid, const struct process *target, const struct sock
     }
 done:;
     int detail = errno;
-    free(source);
     if (installed && target && process_matches(target)) {
         if (!session.attached && webview_attach(&session, target) != 0) {
             trace_error("Stop WebView for connect cleanup");

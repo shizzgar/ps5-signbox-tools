@@ -27,6 +27,7 @@
 #include "orbit-relay.h"
 #include "orbit-run.h"
 #include "panel.h"
+#include "panel-access.h"
 #include "process.h"
 #include "relay.h"
 #include "report.h"
@@ -473,20 +474,8 @@ trusted_request(struct MHD_Connection *connection) {
     const union MHD_ConnectionInfo *info =
         MHD_get_connection_info(connection, MHD_CONNECTION_INFO_CONNECTION_FD);
     const char *host = MHD_lookup_connection_value(connection, MHD_HEADER_KIND, "Host");
-    struct sockaddr_in local;
-    socklen_t length = sizeof(local);
-    if (!info || !host || getsockname(info->connect_fd, (struct sockaddr *)&local, &length) != 0 ||
-        local.sin_family != AF_INET)
-        return 0;
-
-    char address[INET_ADDRSTRLEN], authority[INET_ADDRSTRLEN + 7];
-    if (!inet_ntop(AF_INET, &local.sin_addr, address, sizeof(address)))
-        return 0;
-    snprintf(authority, sizeof(authority), "%s:%u", address, (unsigned)ntohs(local.sin_port));
-    if (strcmp(host, authority))
-        return 0;
     const char *origin = MHD_lookup_connection_value(connection, MHD_HEADER_KIND, "Origin");
-    return !origin || (strncmp(origin, "http://", 7) == 0 && strcmp(origin + 7, authority) == 0);
+    return info && panel_request_is_trusted(info->connect_fd, host, origin);
 }
 
 static int
@@ -534,7 +523,7 @@ json_name(const char *name, char *escaped) {
 
 static enum MHD_Result
 get_status(struct panel *panel, struct MHD_Connection *connection) {
-    char response[400], name[2 * PROCESS_NAME_SIZE + 1];
+    char response[480], name[2 * PROCESS_NAME_SIZE + 1];
     pthread_mutex_lock(&panel->mutex);
     const char *state = "idle";
     const int diagnosing = panel->action == DIAGNOSTICS;
@@ -562,12 +551,14 @@ get_status(struct panel *panel, struct MHD_Connection *connection) {
     const char *check = panel->action == SELF_TEST ? "running" : results[panel->check_result + 1];
     const char *egress = panel->action == HTTPS_TEST ? "running" : results[panel->egress_result + 1];
     const char *download = panel->action == DOWNLOAD_TEST ? "running" : results[panel->download_result + 1];
+    const char *orbit_route = panel->action != ORBIT ? "off" :
+        panel->error ? "unavailable" : atomic_load(&panel->attached) && panel->target.pid ? "armed" : "checking";
     json_name(tracing ? panel->target.name : "", name);
     snprintf(response, sizeof(response),
              "{\"state\":\"%s\",\"proxy\":\"%s\",\"check\":\"%s\",\"egress\":\"%s\","
-             "\"download\":\"%s\",\"webview\":\"%s\",\"webview_route\":\"%s\",\"diagnosing\":%s,\"pid\":%d,\"name\":\"%s\",\"error\":\"%s\"}",
+             "\"download\":\"%s\",\"webview\":\"%s\",\"webview_route\":\"%s\",\"orbit_route\":\"%s\",\"diagnosing\":%s,\"pid\":%d,\"name\":\"%s\",\"error\":\"%s\"}",
              state, proxy_states[panel->proxy.state], check, egress, download, webview_states[panel->webview],
-             webview_route, diagnosing ? "true" : "false", tracing ? (int)panel->target.pid : 0, name,
+             webview_route, orbit_route, diagnosing ? "true" : "false", tracing ? (int)panel->target.pid : 0, name,
              panel->error ? panel->error : "");
     pthread_mutex_unlock(&panel->mutex);
     return json(connection, MHD_HTTP_OK, response);
@@ -800,6 +791,15 @@ handle_request(void *arg, struct MHD_Connection *connection, const char *path,
     const char *marker = MHD_lookup_connection_value(connection, MHD_HEADER_KIND, "X-Relay-Panel");
     if (!marker || strcmp(marker, "1"))
         return json(connection, MHD_HTTP_FORBIDDEN, "{\"error\":\"origin\"}");
+    if (!strcmp(method, "GET") && !strcmp(path, "/api/local-session")) {
+        const union MHD_ConnectionInfo *info =
+            MHD_get_connection_info(connection, MHD_CONNECTION_INFO_CONNECTION_FD);
+        if (!info || !panel_client_is_local(info->connect_fd))
+            return json(connection, MHD_HTTP_UNAUTHORIZED, "{\"error\":\"auth\"}");
+        char response[64];
+        snprintf(response, sizeof(response), "{\"token\":\"%s\"}", panel->token);
+        return json(connection, MHD_HTTP_OK, response);
+    }
     if (!strcmp(method, "POST")) {
         if (!strcmp(path, "/api/login"))
             return sign_in(panel, connection, request->body);

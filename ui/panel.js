@@ -52,7 +52,7 @@
     orbit_unidentified: "Orbit отвечает, но его PID не удалось определить. Посмотри журнал запуска Orbit.",
     orbit_ambiguous: "Найдено несколько процессов с портом Orbit. Проверь, какая копия сервиса запущена.",
     orbit_stalled: "Orbit перестал отвечать. Панель отключила перенаправление.",
-    orbit_image: "Не удалось сопоставить сохранённый ELF с запущенным Orbit. Подробности в диагностике.",
+    orbit_image: "Файлы Orbit из кэша и приложения не подошли запущенному сервису. Подробности в диагностике.",
     orbit_live: "Не удалось подключить перехват к запущенному Orbit. Подробности в диагностике.",
     orbit_use_button: "Для сервиса Orbit используй «Orbit и WebView через VPN».",
     webview_not_ready: "Дождись перехвата WebView в режиме Orbit или диагностики.",
@@ -145,7 +145,8 @@
     const status = element("status");
     status.dataset.state = state;
     const statusText = snapshot.diagnosing && state === "starting" ? "Диагностика…" : {
-      idle: "Ожидание", starting: "Подключаюсь", active: "Перехват активен",
+      idle: "Ожидание", starting: "Подключаюсь",
+      active: snapshot.orbit_route === "unavailable" ? "Работает только WebView" : "Перехват активен",
       checking: "Проверка", restarting: "Запуск sing-box", stopping: "Остановка",
     }[state] || "Ожидание";
     if (element("status-text").textContent !== statusText) element("status-text").textContent = statusText;
@@ -364,7 +365,17 @@
   element("download-log").addEventListener("click", () => downloadText("/api/log", "tcp-relay.log"));
   downloadDiagnostics.addEventListener("click", () => downloadText("/api/diagnostics", "diagnostics.txt"));
 
-  try { token = sessionStorage.getItem("relay-token") || ""; } catch (_) {}
-  if (token) updateStatus();
-  else loginView();
+  async function openSession() {
+    // The server checks the socket peer; a LAN client cannot opt into local access.
+    try {
+      const session = await api("/api/local-session");
+      token = session.token;
+      try { sessionStorage.setItem("relay-token", token); } catch (_) {}
+    } catch (_) {
+      try { token = sessionStorage.getItem("relay-token") || ""; } catch (_) {}
+    }
+    if (token) updateStatus();
+    else loginView();
+  }
+  openSession();
 })();

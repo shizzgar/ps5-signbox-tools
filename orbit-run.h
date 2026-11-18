@@ -5,7 +5,6 @@
 #include <stddef.h>
 #include <stdatomic.h>
 
-int orbit_read_saved(unsigned char **source, size_t *size);
 void orbit_probe_diagnostics(const atomic_bool *stop);
 
 #endif

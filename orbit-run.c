@@ -15,13 +15,10 @@
 #include "orbit-image.h"
 #include "orbit-relay.h"
 #include "orbit-run.h"
+#include "orbit-source.h"
 #include "relay.h"
 #include "report.h"
 #include "service.h"
-
-#ifndef ORBIT_RUNTIME
-#define ORBIT_RUNTIME "/data/orbit-store/orbit_store.elf"
-#endif
 
 enum { ORBIT_BOOT_REPORT_MS = 15000 };
 
@@ -392,49 +389,4 @@ orbit_probe_diagnostics(const atomic_bool *stop) {
         (void)check_connect_shim(stop, 0);
     if (!atomic_load(stop))
         (void)check_connect_shim(stop, 1);
-}
-
-int
-orbit_read_saved(unsigned char **source, size_t *size) {
-    int file = open(ORBIT_RUNTIME, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
-    if (file < 0) {
-        int detail = errno;
-        report_log("Open saved Orbit ELF at %s: %s", ORBIT_RUNTIME, strerror(detail));
-        errno = detail;
-        return -1;
-    }
-    struct stat info;
-    if (fstat(file, &info) != 0 || !S_ISREG(info.st_mode) ||
-        info.st_size <= 0 || info.st_size > 64 * 1024 * 1024) {
-        report_log("Orbit runtime is not a supported ELF file");
-        close(file);
-        errno = ENOEXEC;
-        return -1;
-    }
-    size_t source_size = (size_t)info.st_size;
-    unsigned char *buffer = malloc(source_size);
-    if (!buffer) {
-        close(file);
-        return -1;
-    }
-    size_t used = 0;
-    while (used < source_size) {
-        ssize_t count = read(file, buffer + used, source_size - used);
-        if (count <= 0) {
-            if (count < 0 && errno == EINTR)
-                continue;
-            break;
-        }
-        used += (size_t)count;
-    }
-    close(file);
-    if (used != source_size) {
-        free(buffer);
-        errno = EIO;
-        return -1;
-    }
-
-    *source = buffer;
-    *size = source_size;
-    return 0;
 }

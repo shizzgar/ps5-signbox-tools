@@ -10,3 +10,4 @@
 /panel-launcher/media/ps5-network-media.elf
 /.build/
 /elf/
+__pycache__/

@@ -32,6 +32,23 @@ if [[ ! -x "$PS5_PAYLOAD_SDK/bin/prospero-clang" ]]; then
     exit 1
 fi
 
+if [[ -n "${PS5_CORE_IMAGE:-}" ]]; then
+    # For C/UI-only changes, an explicitly selected, already built Go core can
+    # be reused. The normal build below still compiles it from source.
+    python3 - "$PS5_CORE_IMAGE" "$build_dir/proxy-go.bin" <<'PY'
+import shutil
+import struct
+import sys
+from pathlib import Path
+source, target = map(Path, sys.argv[1:])
+header = source.read_bytes()[:64]
+if (len(header) != 64 or header[:6] != b'\x7fELF\x02\x01' or header[7] != 9 or
+        struct.unpack_from('<HH', header, 16) != (3, 62)):
+    raise SystemExit('PS5_CORE_IMAGE must be an x86-64 PIE ELF built for this PS5 core')
+if source.resolve() != target.resolve():
+    shutil.copyfile(source, target)
+PY
+else
 if [[ -z "${PS5_PATCHED_GO_ROOT:-}" ]]; then
     if [[ "$(uname -s)" != Linux || "$(uname -m)" != x86_64 ]]; then
         printf 'Set PS5_PATCHED_GO_ROOT to a patched Go 1.27.1 for your host.\n' >&2
@@ -70,6 +87,7 @@ mkdir -p "$GOCACHE" "$GOMODCACHE" "$GOTMPDIR"
         -ldflags '-s -w -checklinkname=0 -X runtime.godebugDefault=multipathtcp=0 -X github.com/sagernet/sing-box/constant.Version=1.14.4' \
         -o "$build_dir/proxy-go.bin" .
 )
+fi
 
 sdk="$(cd -- "$PS5_PAYLOAD_SDK" && pwd)"
 compiler="$sdk/bin/prospero-clang"
@@ -96,7 +114,7 @@ else
 fi
 
 python3 "$project_dir/embed-assets.py" "$work/assets.h"
-sources=(main.c panel.c process.c trace.c relay.c check.c report.c diagnostics.c service.c webview.c webview-imports.c orbit-image.c orbit-run.c)
+sources=(main.c panel.c panel-access.c process.c trace.c relay.c check.c report.c diagnostics.c service.c webview.c webview-imports.c orbit-image.c orbit-source.c orbit-run.c)
 for index in "${!sources[@]}"; do
     sources[index]="$project_dir/${sources[index]}"
 done
@@ -118,9 +136,9 @@ done
         "$project_dir/relay.c" "$project_dir/report.c"
     python3 -c 'from pathlib import Path; image = Path("proxy-worker.elf").read_bytes(); assert image.count(b"PS5NET-WORKER-21") == 1 and b"PS5NET-WORKER-21" + bytes(18) in image, "Invalid worker launch record"'
     "$compiler" -O2 -Wall -Wextra -Werror -pthread -I"$work" -I"$headers" \
-        -o "$out_dir/ps5-network-v21.elf" "${sources[@]}" "$library"
+        -o "$out_dir/ps5-network-v22.elf" "${sources[@]}" "$library"
 )
 (
     cd "$out_dir"
-    sha256sum ps5-network-v21.elf > SHA256SUMS.txt
+    sha256sum ps5-network-v*.elf > SHA256SUMS.txt
 )

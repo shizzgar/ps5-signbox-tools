@@ -1,1 +1,2 @@
 e89f6a5fe297418300d9c0d7c6aa5f9406fed801232f7700c4ffbfb372a90677  ps5-network-v21.elf
+53eded96cbbeb4beb30b51fdfb91c2a8115e71a56c910cababc5f02a96307757  ps5-network-v22.elf
