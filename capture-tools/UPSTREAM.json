@@ -1,0 +1,14 @@
+{
+  "project": "PS5 DevLoop",
+  "author": "Gary Riches",
+  "url": "https://github.com/griches/PS5_DevLoop",
+  "commit": "118000a73dc726f134ee5053b9b04d8bc4605556",
+  "license": "GPL-3.0-or-later",
+  "payload_source": "upstream/payload/main.c",
+  "payload_modified": false,
+  "client_changes": "client.patch",
+  "sdk": "PS5 Payload SDK v0.45",
+  "sdk_source": "sdk-source/ps5-payload-sdk-v0.45-source.tar.gz",
+  "sdk_source_url": "https://github.com/shizzgar/ps5-signbox-tools/blob/main/upstream/ps5-payload-sdk-v0.45-source.tar.gz",
+  "changes_date": "2026-11-18"
+}

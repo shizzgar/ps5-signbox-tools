@@ -1,0 +1,62 @@
+--- upstream/tools/ps5loop.py
++++ tools/ps5loop.py
+@@ -2,6 +2,7 @@
+ # PS5 DevLoop - the client of the resident input and screen-capture payload.
+ # Copyright (C) 2026 Gary Riches
+ # SPDX-License-Identifier: GPL-3.0-or-later
++# Modified 2026-11-18: RGBA JPEG XR, ImageMagick 6 / FFmpeg fallback, 1600px output.
+ """Press buttons on the console and see what its screen shows.
+ 
+ Commands:
+@@ -33,6 +34,7 @@
+ import json
+ import os
+ import socket
++import shutil
+ import subprocess
+ import sys
+ import time
+@@ -43,7 +45,7 @@
+ KLOG_PORT = int(os.environ.get("KLOG_PORT", "3232"))
+ LOADER_PORT = int(os.environ.get("PS5_LOADER_PORT", "9021"))
+ # What a picture is scaled down to, so that it can be looked at cheaply.
+-VIEW_WIDTH = 1280
++VIEW_WIDTH = 1600
+ 
+ # Titles that answer a request file with a picture of their frame (AGENTS.md,
+ # "Giving a title grab"): the file the title looks for, and the folder it writes
+@@ -224,7 +226,7 @@
+         # screen's 10-bit pictures as a packed TIFF that nothing reads back
+         # correctly. A title's 8-bit pictures refuse that conversion and decode
+         # as they are.
+-        for conversion in (["-c", "9"], []):
++        for conversion in (["-c", "9"], ["-c", "22"], []):
+             tiff.unlink(missing_ok=True)
+             decoded = subprocess.run(["JxrDecApp", "-i", str(raw), "-o", str(tiff), *conversion],
+                                      capture_output=True, text=True, check=False)
+@@ -241,11 +243,21 @@
+         source.write_bytes(data)
+     # Only the console's HDR pictures need their levels stretched to be readable.
+     levels = ["-auto-level"] if source.suffix == ".tif" else []
+-    scaled = subprocess.run(["magick", str(source), *levels, "-resize", f"{VIEW_WIDTH}x>",
+-                             "-depth", "8", str(target)],
+-                            capture_output=True, text=True, check=False)
++    converter = shutil.which("magick") or shutil.which("convert")
++    if converter:
++        convert_command = [converter, str(source), *levels, "-resize", f"{VIEW_WIDTH}x>",
++                           "-depth", "8", str(target)]
++    elif shutil.which("ffmpeg"):
++        filters = ("normalize=independence=0:smoothing=0," if levels else "") + \
++            f"scale=min({VIEW_WIDTH}\\,iw):-1"
++        convert_command = ["ffmpeg", "-v", "error", "-y", "-i", str(source),
++                           "-vf", filters, "-frames:v", "1", str(target)]
++    else:
++        print(f"kept {source}: install ImageMagick or FFmpeg to produce a PNG")
++        return source
++    scaled = subprocess.run(convert_command, capture_output=True, text=True, check=False)
+     if scaled.returncode != 0:
+-        print(f"kept {source}: magick could not convert it ({scaled.stderr.strip()[-200:]})")
++        print(f"kept {source}: PNG conversion failed ({scaled.stderr.strip()[-200:]})")
+         return source
+     if source.suffix == ".tif":
+         source.unlink()

@@ -10,5 +10,6 @@
 | Go | upstream/GO-LICENSE и upstream/GO-PATENTS |
 | Go-зависимости | upstream/vendor-source.zip. Включены исходные LICENSE, COPYING, NOTICE и vendor/modules.txt |
 | Inter | ui/Inter-LICENSE.txt. SIL Open Font License |
+| PS5 DevLoop | capture-tools/upstream/, снимок 118000a73dc726f134ee5053b9b04d8bc4605556. GPL-3.0-or-later. Изменения клиента сохранены в capture-tools/client.patch |
 
 Текст GPL сохранён в LICENSES/GPL-3.0-or-later.txt. Для распространения собранного приложения учитывайте условия всех включённых компонентов.
