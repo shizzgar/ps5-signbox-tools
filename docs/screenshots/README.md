@@ -4,6 +4,7 @@
 
 | Файл | Что показано | Откуда получен | Размер |
 | --- | --- | --- | --- |
+| [ps5-network-v22-on-console.png](ps5-network-v22-on-console.png) | Панель 0.22 сразу после открытия плитки в «Мультимедиа» без PIN. Orbit и WebView подключены, HTTPS пройден. | Экран PS5 12.20 | 1600 × 900 |
 | [ps5-network-on-console.png](ps5-network-on-console.png) | Панель PS5 Network после открытия плитки в «Мультимедиа» и входа. sing-box запущен, HTTPS и загрузка пройдены. | Экран PS5 12.20 | 1600 × 900 |
 | [ps5-network-media.png](ps5-network-media.png) | Плитка PS5 Network в «Мультимедиа». | Экран PS5 12.20 | 1600 × 900 |
 | [payload-manager.png](payload-manager.png) | Установленные приложения в Payload Manager 0.6.3. | Браузер на ПК | 1080 × 210 |
